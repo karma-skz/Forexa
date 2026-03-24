@@ -13,10 +13,10 @@ export async function fetchMarketNews(category?: string): Promise<NewsArticle[]>
         const params = new URLSearchParams();
         if (category) params.append('category', category);
 
-        // Call our own internal API route which proxies to GNews
-        // Use full URL if on server, relative if on client? 
-        // fetch works with relative URLs in browser.
-        const res = await fetch(`/api/news?${params.toString()}`);
+        const baseUrl = typeof window !== 'undefined' ? '' : process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+        const res = await fetch(`${baseUrl}/api/news?${params.toString()}`, {
+            cache: 'no-store'
+        });
 
         if (!res.ok) {
             console.error(`News API error: ${res.status}`);
@@ -25,19 +25,22 @@ export async function fetchMarketNews(category?: string): Promise<NewsArticle[]>
 
         const data = await res.json();
 
-        if (!data.articles || !Array.isArray(data.articles)) {
+        // Handle both GNews and NewsAPI formats
+        const articles = data.articles || [];
+
+        if (!Array.isArray(articles)) {
             console.warn('News API returned unexpected format, using fallback');
             return getFallbackNews();
         }
 
         /* eslint-disable @typescript-eslint/no-explicit-any */
-        return data.articles.map((a: any) => ({
+        return articles.map((a: any) => ({
             title: a.title,
-            description: a.description,
+            description: a.description || a.content || 'No description available',
             url: a.url,
             source: a.source?.name || 'Unknown',
             publishedAt: a.publishedAt,
-            imageUrl: a.image,
+            imageUrl: a.image || a.urlToImage, // a.image for GNews, a.urlToImage for NewsAPI
             category: category || 'general',
         }));
         /* eslint-enable @typescript-eslint/no-explicit-any */
